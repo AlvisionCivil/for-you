@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Espejito Mágico ✨ Para Mils</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { width:100%; height:100%; overflow:hidden; background:#030308; font-family:'Georgia',serif; cursor:default; user-select:none; }
+
+#canvas-bg      { position:absolute; inset:0; z-index:0; }
+#tunnel-canvas  { position:absolute; inset:0; z-index:4; transition:opacity 1.4s; }
+#sparkle-canvas { position:fixed;    inset:0; z-index:8; pointer-events:none; }
+
+.nebula { position:absolute; border-radius:50%; pointer-events:none; z-index:1; }
+@keyframes nebulaMove { from{transform:translate(0,0) scale(1)} to{transform:translate(22px,16px) scale(1.1)} }
+
+#main { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:10; }
+
+.mirror-wrap { position:relative; display:flex; align-items:center; justify-content:center; }
+
+.mirror-glow {
+  position:absolute; width:500px; height:660px;
+  border-radius:50% 50% 50% 50%/60% 60% 40% 40%;
+  background:radial-gradient(ellipse,rgba(180,120,255,.25) 0%,rgba(255,190,80,.1) 60%,transparent 80%);
+  filter:blur(30px); animation:mirrorPulse 3.2s ease-in-out infinite; z-index:1;
+}
+@keyframes mirrorPulse { 0%,100%{opacity:.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.06)} }
+
+.mirror-svg { width:420px; height:560px; position:relative; z-index:2; filter:drop-shadow(0 0 40px rgba(160,100,255,.5)); }
+
+/* Contenedor posicionador — sin backdrop-filter aquí */
+.mirror-inner {
+  position:absolute; top:46px; left:46px; right:46px; bottom:46px;
+  border-radius:50% 50% 50% 50%/58% 58% 42% 42%;
+  overflow:hidden;
+  z-index:3;
+}
+
+/* Capa glass SEPARADA — solo visual, no contiene texto */
+.mirror-glass-layer {
+  position:absolute; inset:0;
+  border-radius:50% 50% 50% 50%/58% 58% 42% 42%;
+  background:linear-gradient(160deg,
+    rgba(255,255,255,0.13) 0%,
+    rgba(255,255,255,0.04) 30%,
+    rgba(180,200,255,0.02) 60%,
+    rgba(0,0,0,0.50) 100%);
+  backdrop-filter:blur(16px) saturate(160%);
+  -webkit-backdrop-filter:blur(16px) saturate(160%);
+  z-index:1;
+  pointer-events:none;
+}
+
+/* Foto de Mils — encima del glass, debajo del texto */
+.mirror-photo {
+  position:absolute; inset:0;
+  border-radius:50% 50% 50% 50%/58% 58% 42% 42%;
+  overflow:hidden;
+  opacity:0; transition:opacity 2s ease;
+  z-index:2;
+}
+.mirror-photo img {
+  width:100%; height:100%;
+  object-fit:cover;
+  filter:brightness(.38) saturate(1.15) blur(1px);
+}
+.mirror-photo.show { opacity:1; }
+
+/* Barrido de luz */
+.mirror-sweep {
+  position:absolute; top:-100%; left:-40%; width:55%; height:300%;
+  background:linear-gradient(108deg,transparent 30%,rgba(255,255,255,.07) 50%,transparent 70%);
+  animation:sweep 4.5s ease-in-out infinite; pointer-events:none; z-index:3;
+}
+@keyframes sweep { 0%{left:-60%;opacity:0} 15%{opacity:1} 85%{opacity:1} 100%{left:110%;opacity:0} }
+
+/* Brillo glass en borde superior */
+.mirror-glass-edge {
+  position:absolute; inset:0;
+  border-radius:50% 50% 50% 50%/58% 58% 42% 42%;
+  background:linear-gradient(135deg,
+    rgba(255,255,255,0.26) 0%,
+    rgba(255,255,255,0.08) 18%,
+    transparent 42%,
+    transparent 78%,
+    rgba(255,255,255,0.06) 100%);
+  pointer-events:none; z-index:4;
+}
+
+/* Texto — z-index alto, completamente separado del backdrop-filter */
+.mirror-text-wrap {
+  position:absolute; inset:0;
+  display:flex; align-items:center; justify-content:center;
+  z-index:10;
+  opacity:0; transition:opacity 1s;
+  padding:20px;
+}
+.mirror-text-wrap.visible { opacity:1; }
+
+.question-text {
+  color:rgba(255,250,225,1);
+  font-size:15px; font-style:italic; line-height:1.9;
+  text-align:center;
+  white-space:pre-line;
+  text-shadow:
+    0 0 8px rgba(0,0,0,1),
+    0 0 20px rgba(0,0,0,.9),
+    0 0 14px rgba(255,200,100,.6),
+    0 0 35px rgba(200,150,255,.4);
+}
+
+/* ---- AVATARES ---- */
+.avatars-wrap {
+  position:absolute; bottom:110px; width:100%;
+  display:flex; justify-content:center; align-items:flex-end;
+  z-index:20; opacity:0; transform:translateY(35px); transition:opacity 1.2s,transform 1.2s;
+}
+.avatars-wrap.visible { opacity:1; transform:translateY(0); }
+
+/* ---- BOTÓN GLASS ---- */
+.glass-btn {
+  position:fixed; bottom:32px; left:50%; transform:translateX(-50%);
+  z-index:100; display:none;
+  padding:14px 38px;
+  background:rgba(255,255,255,.09);
+  border:1px solid rgba(255,255,255,.28);
+  border-radius:50px;
+  color:rgba(255,245,210,.95);
+  font-family:'Georgia',serif;
+  font-size:15px; font-style:italic; letter-spacing:2px;
+  cursor:pointer;
+  backdrop-filter:blur(14px) saturate(150%);
+  -webkit-backdrop-filter:blur(14px) saturate(150%);
+  box-shadow:0 4px 30px rgba(160,100,255,.2), inset 0 1px 0 rgba(255,255,255,.18);
+  transition:background .3s, box-shadow .3s, transform .2s;
+  animation:btnPulse 2.5s ease-in-out infinite;
+  white-space:nowrap;
+}
+.glass-btn:hover {
+  background:rgba(255,255,255,.18);
+  border-color:rgba(255,220,100,.55);
+  box-shadow:0 4px 45px rgba(255,180,80,.32), inset 0 1px 0 rgba(255,255,255,.22);
+  transform:translateX(-50%) scale(1.04);
+}
+.glass-btn.show { display:block; }
+@keyframes btnPulse {
+  0%,100%{box-shadow:0 4px 30px rgba(160,100,255,.2),inset 0 1px 0 rgba(255,255,255,.18)}
+  50%{box-shadow:0 4px 50px rgba(255,180,80,.3),inset 0 1px 0 rgba(255,255,255,.22)}
+}
+
+/* ---- REVEAL MILS ---- */
+.mils-reveal {
+  position:absolute; inset:0; z-index:50;
+  display:flex; align-items:center; justify-content:center; flex-direction:column;
+  opacity:0; pointer-events:none; transition:opacity 1.4s;
+}
+.mils-reveal.visible { opacity:1; pointer-events:all; }
+
+.mils-bg-glow {
+  position:absolute; width:520px; height:520px; border-radius:50%;
+  background:radial-gradient(circle,rgba(255,170,80,.28) 0%,rgba(190,80,255,.16) 50%,transparent 72%);
+  filter:blur(45px); animation:glowPulse 2.2s ease-in-out infinite;
+}
+@keyframes glowPulse { 0%,100%{transform:scale(1);opacity:.8} 50%{transform:scale(1.12);opacity:1} }
+
+.crown-canvas { position:relative; z-index:2; width:220px; height:88px; }
+
+.mils-word {
+  position:relative; z-index:2;
+  font-size:clamp(60px,15vw,96px); font-weight:900; font-style:italic;
+  font-family:Georgia,'Times New Roman',serif;
+  background:linear-gradient(135deg,#FFD700 0%,#FFE566 25%,#FF8CC6 60%,#FFD700 100%);
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  letter-spacing:12px;
+  filter:drop-shadow(0 0 28px rgba(255,160,80,.8));
+  animation:milsShine 2.8s ease-in-out infinite;
+  transform:scale(0); transition:transform .9s cubic-bezier(.34,1.56,.64,1);
+}
+.mils-word.revealed { transform:scale(1); }
+@keyframes milsShine {
+  0%,100%{filter:drop-shadow(0 0 28px rgba(255,160,80,.8))}
+  50%{filter:drop-shadow(0 0 50px rgba(255,80,180,1))}
+}
+
+.mils-subtitle {
+  position:relative; z-index:2;
+  color:rgba(255,228,170,.9); font-size:16px; font-style:italic; letter-spacing:4px; margin-top:14px;
+  opacity:0; transform:translateY(14px); transition:opacity 1s .7s,transform 1s .7s;
+}
+.mils-subtitle.visible { opacity:1; transform:translateY(0); }
+
+#restart-btn {
+  position:fixed; bottom:12px; right:16px;
+  background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.13);
+  color:rgba(255,255,255,.35); font-size:11px; padding:5px 13px; border-radius:20px;
+  cursor:pointer; z-index:200; font-family:sans-serif; letter-spacing:1px; transition:all .3s;
+}
+#restart-btn:hover { color:rgba(255,255,255,.85); border-color:rgba(255,255,255,.45); }
+</style>
+</head>
+<body>
+
+<div class="nebula" style="width:380px;height:240px;background:rgba(70,20,160,.2);top:8%;left:3%;filter:blur(75px);animation:nebulaMove 9s ease-in-out infinite alternate;"></div>
+<div class="nebula" style="width:300px;height:220px;background:rgba(150,50,20,.14);top:52%;right:3%;filter:blur(68px);animation:nebulaMove 11s ease-in-out infinite alternate-reverse;"></div>
+<div class="nebula" style="width:240px;height:200px;background:rgba(20,60,150,.12);bottom:8%;left:20%;filter:blur(62px);animation:nebulaMove 7s ease-in-out infinite alternate;"></div>
+
+<canvas id="canvas-bg"></canvas>
+<canvas id="tunnel-canvas"></canvas>
+<canvas id="sparkle-canvas"></canvas>
+
+<div id="main">
+  <div class="mirror-wrap" id="mirrorWrap" style="opacity:0;transition:opacity 2s;">
+    <div class="mirror-glow" id="mirrorGlow"></div>
+
+    <svg class="mirror-svg" viewBox="0 0 420 560" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="fg" cx="50%" cy="38%" r="62%">
+          <stop offset="0%"   stop-color="#F8F0FF"/>
+          <stop offset="30%"  stop-color="#D0B4F4"/>
+          <stop offset="65%"  stop-color="#8050C8"/>
+          <stop offset="100%" stop-color="#2C1458"/>
+        </radialGradient>
+        <radialGradient id="ig" cx="28%" cy="22%" r="80%">
+          <stop offset="0%"   stop-color="rgba(255,255,255,0.06)"/>
+          <stop offset="30%"  stop-color="rgba(220,235,255,0.03)"/>
+          <stop offset="100%" stop-color="rgba(0,0,0,0.55)"/>
+        </radialGradient>
+        <filter id="fs"><feDropShadow dx="0" dy="0" stdDeviation="16" flood-color="rgba(150,90,255,.6)"/></filter>
+      </defs>
+      <ellipse cx="210" cy="272" rx="198" ry="260" fill="url(#fg)" filter="url(#fs)"/>
+      <ellipse cx="210" cy="22"  rx="26"  ry="15"  fill="#D4B4EE"/>
+      <ellipse cx="210" cy="16"  rx="16"  ry="11"  fill="#ECD8FF"/>
+      <polygon points="210,3 221,16 210,27 199,16" fill="#F6EAFF" stroke="#C09AE0" stroke-width=".8"/>
+      <ellipse cx="16"  cy="230" rx="13" ry="20" fill="#B090D4"/>
+      <ellipse cx="404" cy="230" rx="13" ry="20" fill="#B090D4"/>
+      <ellipse cx="16"  cy="295" rx="13" ry="20" fill="#B090D4"/>
+      <ellipse cx="404" cy="295" rx="13" ry="20" fill="#B090D4"/>
+      <ellipse cx="22"  cy="160" rx="10" ry="14" fill="#C8A8E0"/>
+      <ellipse cx="398" cy="160" rx="10" ry="14" fill="#C8A8E0"/>
+      <ellipse cx="22"  cy="370" rx="10" ry="14" fill="#C8A8E0"/>
+      <ellipse cx="398" cy="370" rx="10" ry="14" fill="#C8A8E0"/>
+      <ellipse cx="210" cy="524" rx="26" ry="15" fill="#D4B4EE"/>
+      <polygon points="210,540 221,524 210,516 199,524" fill="#ECD8FF" stroke="#C09AE0" stroke-width=".8"/>
+      <text x="70"  y="90"  fill="rgba(255,238,180,.9)" font-size="16" text-anchor="middle">✦</text>
+      <text x="350" y="90"  fill="rgba(255,238,180,.9)" font-size="16" text-anchor="middle">✦</text>
+      <text x="70"  y="460" fill="rgba(255,238,180,.9)" font-size="16" text-anchor="middle">✦</text>
+      <text x="350" y="460" fill="rgba(255,238,180,.9)" font-size="16" text-anchor="middle">✦</text>
+      <ellipse cx="210" cy="272" rx="170" ry="224" fill="url(#ig)"/>
+      <ellipse cx="210" cy="272" rx="170" ry="224" fill="none" stroke="rgba(220,190,255,.3)"  stroke-width="2.5"/>
+      <ellipse cx="210" cy="272" rx="162" ry="216" fill="none" stroke="rgba(220,190,255,.12)" stroke-width="1.2"/>
+      <ellipse cx="175" cy="155" rx="55"  ry="25"  fill="rgba(255,255,255,0.05)" transform="rotate(-20,175,155)"/>
+    </svg>
+
+    <!-- Interior del espejo: capas separadas -->
+    <div class="mirror-inner" id="mirrorInner">
+      <!-- Capa 1: glass blur (solo visual) -->
+      <div class="mirror-glass-layer"></div>
+      <!-- Capa 2: foto de Mils -->
+      <div class="mirror-photo" id="mirrorPhoto">
+        <img src="https://raw.githubusercontent.com/AlvisionCivil/for-you/main/foto1.jpg" crossorigin="anonymous"/>
+      </div>
+      <!-- Capa 3: barrido de luz -->
+      <div class="mirror-sweep"></div>
+      <!-- Capa 4: brillo de borde -->
+      <div class="mirror-glass-edge"></div>
+      <!-- Capa 5: texto — completamente independiente -->
+      <div class="mirror-text-wrap" id="mirrorTextWrap">
+        <div class="question-text" id="questionText"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="avatars-wrap" id="avatarsWrap">
+    <canvas id="avatar-canvas" width="340" height="240"></canvas>
+  </div>
+</div>
+
+<!-- REVEAL MILS -->
+<div class="mils-reveal" id="milsReveal">
+  <div class="mils-bg-glow"></div>
+  <canvas class="crown-canvas" id="crownCanvas" width="220" height="88"></canvas>
+  <div class="mils-word" id="milsWord">MILS</div>
+  <div class="mils-subtitle" id="milsSubtitle">самая красивая на свете ✨</div>
+</div>
+
+<button class="glass-btn" id="glassBtn" onclick="handleBtn()">✦ нажать, чтобы продолжить ✦</button>
+<button id="restart-btn" onclick="restartAll()">↺ reiniciar</button>
+
+<script>
+const PHOTOS = [
+  'https://raw.githubusercontent.com/AlvisionCivil/for-you/main/foto1.jpg',
+  'https://raw.githubusercontent.com/AlvisionCivil/for-you/main/foto2.jpg',
+  'https://raw.githubusercontent.com/AlvisionCivil/for-you/main/foto3.jpg',
+  'https://raw.githubusercontent.com/AlvisionCivil/for-you/main/foto4.jpg',
+  'https://raw.githubusercontent.com/AlvisionCivil/for-you/main/foto5.jpg',
+  'https://raw.githubusercontent.com/AlvisionCivil/for-you/main/foto6.jpg',
+];
+const WORDS = ['grandiosa','increíble','única','especial','mágica','mi cielo','luminosa','perfecta'];
+
+let phase=0, photoImgs=[], photosLoaded=0;
+let tunnelActive=false, tunnelStartTime=0;
+let typingInterval=null, clickEnabled=false, sparkles=[];
+let readyForReveal=false;
+
+PHOTOS.forEach(src => {
+  const img=new Image(); img.crossOrigin='anonymous';
+  img.onload=img.onerror=()=>{ photosLoaded++; if(photosLoaded===PHOTOS.length) startPhase1(); };
+  img.src=src; photoImgs.push(img);
+});
+
+function showBtn(label){
+  const b=document.getElementById('glassBtn');
+  b.textContent=label; b.classList.add('show');
+}
+function hideBtn(){ document.getElementById('glassBtn').classList.remove('show'); }
+function handleBtn(){
+  if(!clickEnabled) return;
+  if(phase===1) startPhase2();
+  else if(phase===2) startPhase3();
+  else if(phase===3 && readyForReveal) startPhase4();
+}
+
+/* FONDO ESTRELLAS */
+const bgCanvas=document.getElementById('canvas-bg'), bgCtx=bgCanvas.getContext('2d');
+let stars=[];
+function initBg(){
+  bgCanvas.width=window.innerWidth; bgCanvas.height=window.innerHeight;
+  stars=Array.from({length:220},()=>({
+    x:Math.random()*bgCanvas.width, y:Math.random()*bgCanvas.height,
+    r:Math.random()*1.5+.3, sp:Math.random()*.006+.002, ph:Math.random()*Math.PI*2
+  }));
+}
+function drawBg(t){
+  bgCtx.clearRect(0,0,bgCanvas.width,bgCanvas.height);
+  stars.forEach(s=>{
+    const a=.2+.6*Math.sin(s.ph+t*s.sp);
+    bgCtx.beginPath(); bgCtx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    bgCtx.fillStyle=`rgba(255,255,238,${a})`; bgCtx.fill();
+  });
+}
+
+/* SPARKLES */
+const spCanvas=document.getElementById('sparkle-canvas'), spCtx=spCanvas.getContext('2d');
+function spawnSparkle(x,y,big){
+  sparkles.push({
+    x:x||Math.random()*window.innerWidth, y:y||Math.random()*window.innerHeight,
+    vx:(Math.random()-.5)*1.8, vy:-Math.random()*2.2-.4,
+    life:1, decay:Math.random()*.012+.005,
+    r:big?Math.random()*5+3:Math.random()*2.8+.8,
+    color:['#FFD700','#FFF2B0','#FFFFFF','#FFB0E0'][Math.floor(Math.random()*4)]
+  });
+}
+function drawSparkles(){
+  spCanvas.width=window.innerWidth; spCanvas.height=window.innerHeight;
+  spCtx.clearRect(0,0,spCanvas.width,spCanvas.height);
+  sparkles=sparkles.filter(s=>s.life>0);
+  sparkles.forEach(s=>{
+    s.x+=s.vx; s.y+=s.vy; s.life-=s.decay;
+    spCtx.save(); spCtx.globalAlpha=Math.max(0,s.life);
+    spCtx.beginPath(); spCtx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    spCtx.fillStyle=s.color; spCtx.shadowColor=s.color; spCtx.shadowBlur=s.r*4; spCtx.fill();
+    spCtx.restore();
+  });
+}
+
+/* TÚNEL 3D */
+const tnCanvas=document.getElementById('tunnel-canvas'), tnCtx=tnCanvas.getContext('2d');
+let tunnelParticles=[], wordParticles=[];
+function initTunnel(){
+  tnCanvas.width=window.innerWidth; tnCanvas.height=window.innerHeight;
+  tunnelParticles=[]; wordParticles=[];
+  const valid=photoImgs.filter(i=>i.naturalWidth>0);
+  for(let i=0;i<28;i++){
+    const img=valid.length?valid[i%valid.length]:null;
+    const ang=Math.random()*Math.PI*2, dist=650+Math.random()*450;
+    tunnelParticles.push({
+      img, x:Math.cos(ang)*dist, y:Math.sin(ang)*dist,
+      z:Math.random()*900+200, sp:1.8+Math.random()*1.4,
+      w:280+Math.random()*140, h:185+Math.random()*90,
+      rot:(Math.random()-.5)*.2, alpha:.9
+    });
+  }
+  WORDS.forEach((word,i)=>{
+    const ang=(i/WORDS.length)*Math.PI*2, dist=450+Math.random()*350;
+    wordParticles.push({
+      text:word, x:Math.cos(ang)*dist, y:Math.sin(ang)*dist,
+      z:Math.random()*700+100, sp:2.2+Math.random()*1.5,
+      color:['#FFD700','#FF8CC6','#FFFFFF','#C8A8FF'][i%4],
+      size:22+Math.floor(Math.random()*16)
+    });
+  });
+  for(let i=0;i<6;i++){
+    const ang=Math.random()*Math.PI*2;
+    wordParticles.push({
+      text:'❤', x:Math.cos(ang)*550, y:Math.sin(ang)*550,
+      z:Math.random()*600+100, sp:2+Math.random()*1.5,
+      color:'#FF6FAE', size:28+Math.floor(Math.random()*14)
+    });
+  }
+}
+function drawTunnel(t,elapsed){
+  const W=tnCanvas.width,H=tnCanvas.height,cx=W/2,cy=H/2,fov=580;
+  const progress=Math.min(elapsed/5500,1);
+  tnCtx.clearRect(0,0,W,H);
+  const vig=tnCtx.createRadialGradient(cx,cy,0,cx,cy,Math.max(W,H)*.65);
+  vig.addColorStop(0,'rgba(3,3,8,.72)'); vig.addColorStop(1,'rgba(3,3,8,0)');
+  tnCtx.fillStyle=vig; tnCtx.fillRect(0,0,W,H);
+  for(let i=0;i<30;i++){
+    const ang=(i/30)*Math.PI*2+t*.0006, len=80+Math.random()*130;
+    tnCtx.beginPath();
+    tnCtx.moveTo(cx+Math.cos(ang)*50,cy+Math.sin(ang)*50);
+    tnCtx.lineTo(cx+Math.cos(ang)*(len+140),cy+Math.sin(ang)*(len+140));
+    tnCtx.strokeStyle='rgba(255,255,180,.05)'; tnCtx.lineWidth=.6; tnCtx.stroke();
+  }
+  [...tunnelParticles,...wordParticles].forEach(p=>{
+    p.z-=p.sp;
+    if(p.z<10){
+      p.z=900+Math.random()*500;
+      const a=Math.random()*Math.PI*2,d=550+Math.random()*400;
+      p.x=Math.cos(a)*d; p.y=Math.sin(a)*d;
+    }
+    const sc=fov/(fov+p.z), sx=cx+p.x*sc, sy=cy+p.y*sc;
+    const fade=Math.min(1,(1-sc)*3.8);
+    if(p.img){
+      if(!p.img.naturalWidth) return;
+      const sw=p.w*sc, sh=p.h*sc;
+      tnCtx.save(); tnCtx.globalAlpha=fade*p.alpha;
+      tnCtx.translate(sx,sy); tnCtx.rotate(p.rot||0);
+      tnCtx.beginPath(); tnCtx.roundRect(-sw/2,-sh/2,sw,sh,14*sc); tnCtx.clip();
+      tnCtx.drawImage(p.img,-sw/2,-sh/2,sw,sh);
+      tnCtx.strokeStyle='rgba(210,180,255,.55)'; tnCtx.lineWidth=2; tnCtx.stroke();
+      tnCtx.restore();
+    } else {
+      tnCtx.save(); tnCtx.globalAlpha=fade*.9;
+      tnCtx.fillStyle=p.color;
+      tnCtx.font=`${Math.round(p.size*sc)}px Georgia,serif`;
+      tnCtx.textAlign='center'; tnCtx.shadowColor=p.color; tnCtx.shadowBlur=10*sc;
+      tnCtx.fillText(p.text,sx,sy); tnCtx.restore();
+    }
+  });
+  if(progress>.65){
+    tnCtx.fillStyle=`rgba(3,3,8,${(progress-.65)/.35})`; tnCtx.fillRect(0,0,W,H);
+  }
+}
+
+/* AVATARES */
+const avCanvas=document.getElementById('avatar-canvas'), avCtx=avCanvas.getContext('2d');
+function drawAvatars(t){
+  avCtx.clearRect(0,0,avCanvas.width,avCanvas.height);
+  const bob=Math.sin(t*.002)*3.5;
+  drawMils(avCtx,100,195+bob,t); drawYou(avCtx,235,190+bob*.85,t);
+}
+function drawMils(c,cx,cy,t){
+  const g=c.createRadialGradient(cx,cy-25,6,cx,cy,75);
+  g.addColorStop(0,'rgba(255,235,100,.92)');g.addColorStop(.6,'rgba(255,205,60,.65)');g.addColorStop(1,'rgba(255,185,40,0)');
+  c.save();
+  c.beginPath();c.arc(cx,cy-12,62,0,Math.PI*2);c.fillStyle=g;c.fill();
+  c.beginPath();c.moveTo(cx-26,cy+12);c.quadraticCurveTo(cx-35,cy+58,cx-20,cy+82);c.lineTo(cx+20,cy+82);c.quadraticCurveTo(cx+35,cy+58,cx+26,cy+12);c.closePath();c.fillStyle='rgba(255,225,80,.96)';c.fill();
+  c.beginPath();c.ellipse(cx-28,cy+14,12,8,-.3,0,Math.PI*2);c.fillStyle='rgba(255,205,60,.92)';c.fill();
+  c.beginPath();c.ellipse(cx+28,cy+14,12,8,.3,0,Math.PI*2);c.fillStyle='rgba(255,205,60,.92)';c.fill();
+  c.beginPath();c.arc(cx,cy-35,23,0,Math.PI*2);c.fillStyle='rgba(255,235,100,.96)';c.fill();
+  [[cx-18,cx-26,cx-22,cx-16],[cx+18,cx+26,cx+22,cx+16]].forEach(([ax,bx,ex,dx])=>{
+    c.beginPath();c.moveTo(ax,cy-46);c.quadraticCurveTo(bx,cy+6,ex,cy+18);c.lineTo(dx,cy+17);c.quadraticCurveTo(bx-4,cy+2,ax-4,cy-44);c.fillStyle='rgba(255,205,55,.92)';c.fill();
+  });
+  c.save();c.globalAlpha=.45+.18*Math.sin(t*.004);
+  c.beginPath();c.moveTo(cx-25,cy+2);c.quadraticCurveTo(cx-65,cy-24,cx-48,cy+24);c.quadraticCurveTo(cx-36,cy+36,cx-25,cy+18);c.fillStyle='rgba(255,245,160,.65)';c.fill();
+  c.beginPath();c.moveTo(cx+25,cy+2);c.quadraticCurveTo(cx+65,cy-24,cx+48,cy+24);c.quadraticCurveTo(cx+36,cy+36,cx+25,cy+18);c.fill();c.restore();
+  c.beginPath();c.arc(cx,cy-7,5,0,Math.PI*2);c.fillStyle='rgba(255,255,200,.92)';c.fill();
+  c.strokeStyle='rgba(200,160,0,.85)';c.lineWidth=1.2;c.stroke();
+  c.restore();
+}
+function drawYou(c,cx,cy,t){
+  const g=c.createRadialGradient(cx,cy-22,6,cx,cy,72);
+  g.addColorStop(0,'rgba(255,185,55,.92)');g.addColorStop(.5,'rgba(225,85,22,.65)');g.addColorStop(1,'rgba(205,42,12,0)');
+  c.save();
+  c.beginPath();c.arc(cx,cy-12,65,0,Math.PI*2);c.fillStyle=g;c.fill();
+  c.beginPath();c.moveTo(cx-28,cy+9);c.lineTo(cx-32,cy+34);c.lineTo(cx-22,cy+78);c.lineTo(cx+22,cy+78);c.lineTo(cx+32,cy+34);c.lineTo(cx+28,cy+9);c.closePath();c.fillStyle='rgba(255,165,32,.96)';c.fill();
+  c.beginPath();c.ellipse(cx-30,cy+12,14,9,-.2,0,Math.PI*2);c.fillStyle='rgba(235,125,22,.92)';c.fill();
+  c.beginPath();c.ellipse(cx+30,cy+12,14,9,.2,0,Math.PI*2);c.fillStyle='rgba(235,125,22,.92)';c.fill();
+  c.beginPath();c.arc(cx,cy-32,23,0,Math.PI*2);c.fillStyle='rgba(255,205,62,.96)';c.fill();
+  const fl=Math.sin(t*.006)*2.5;
+  c.lineWidth=4.5;c.lineCap='round';c.strokeStyle='rgba(255,185,32,.96)';
+  c.beginPath();c.moveTo(cx-9,cy-50);c.lineTo(cx-20,cy-78+fl);c.lineTo(cx-32,cy-67+fl);c.stroke();
+  c.beginPath();c.moveTo(cx-20,cy-72+fl);c.lineTo(cx-11,cy-86+fl);c.stroke();
+  c.beginPath();c.moveTo(cx-25,cy-73+fl);c.lineTo(cx-36,cy-82+fl);c.stroke();
+  c.beginPath();c.moveTo(cx+9,cy-50);c.lineTo(cx+20,cy-78+fl);c.lineTo(cx+32,cy-67+fl);c.stroke();
+  c.beginPath();c.moveTo(cx+20,cy-72+fl);c.lineTo(cx+11,cy-86+fl);c.stroke();
+  c.beginPath();c.moveTo(cx+25,cy-73+fl);c.lineTo(cx+36,cy-82+fl);c.stroke();
+  [[cx-32,cy-67],[cx-11,cy-86],[cx-36,cy-82],[cx+32,cy-67],[cx+11,cy-86],[cx+36,cy-82]].forEach(([px,py])=>{
+    c.save();c.globalAlpha=.65+.25*Math.sin(t*.008);
+    c.beginPath();c.arc(px,py+fl,4.5,0,Math.PI*2);
+    c.fillStyle='rgba(255,90,22,.85)';c.shadowColor='#FF5010';c.shadowBlur=12;c.fill();c.restore();
+  });
+  c.restore();
+}
+
+/* CORONA */
+function drawCrown(ctx,t){
+  const W=ctx.canvas.width,H=ctx.canvas.height,cx=W/2,fl=Math.sin(t*.004)*2.5;
+  ctx.clearRect(0,0,W,H);
+  ctx.beginPath();ctx.moveTo(cx-65,H-14);ctx.lineTo(cx-65,H-42+fl);ctx.lineTo(cx-39,H-66+fl);ctx.lineTo(cx,H-80+fl);ctx.lineTo(cx+39,H-66+fl);ctx.lineTo(cx+65,H-42+fl);ctx.lineTo(cx+65,H-14);ctx.closePath();
+  const g=ctx.createLinearGradient(cx-65,0,cx+65,0);
+  g.addColorStop(0,'#FFD700');g.addColorStop(.5,'#FFF5AA');g.addColorStop(1,'#FFD700');
+  ctx.fillStyle=g;ctx.fill();ctx.strokeStyle='rgba(255,205,50,.85)';ctx.lineWidth=2;ctx.stroke();
+  [[cx-65,H-14],[cx,H-80+fl],[cx+65,H-14]].forEach(([px,py],i)=>{
+    ctx.beginPath();ctx.arc(px,py,7,0,Math.PI*2);
+    ctx.fillStyle=['#FF6FAE','#FFD700','#FF6FAE'][i];
+    ctx.shadowColor=ctx.fillStyle;ctx.shadowBlur=10;ctx.fill();ctx.shadowBlur=0;
+  });
+  for(let i=0;i<8;i++){
+    const a=(i/8)*Math.PI*2+t*.0022,r=75+Math.sin(t*.003+i)*10;
+    ctx.beginPath();ctx.arc(cx+Math.cos(a)*r,(H-42)+Math.sin(a)*26,2.4,0,Math.PI*2);
+    ctx.fillStyle=`rgba(255,232,100,${.35+.55*Math.sin(t*.005+i*1.3)})`;ctx.fill();
+  }
+}
+
+/* TYPEWRITER */
+function typeText(el,text,speed,done){
+  let i=0; el.textContent='';
+  if(typingInterval) clearInterval(typingInterval);
+  typingInterval=setInterval(()=>{
+    el.textContent+=text[i++];
+    if(i>=text.length){clearInterval(typingInterval);typingInterval=null;if(done)done();}
+  },speed);
+}
+
+/* CAMPANITAS */
+function playChimes(){
+  try{
+    const ac=new(window.AudioContext||window.webkitAudioContext)();
+    [523.25,659.25,783.99,1046.5,1318.5,1568].forEach((f,i)=>{
+      const o=ac.createOscillator(),g=ac.createGain();
+      o.connect(g);g.connect(ac.destination);o.type='sine';o.frequency.value=f;
+      const s=ac.currentTime+i*.17;
+      g.gain.setValueAtTime(0,s);g.gain.linearRampToValueAtTime(.16,s+.04);
+      g.gain.exponentialRampToValueAtTime(.001,s+1.4);o.start(s);o.stop(s+1.5);
+    });
+  }catch(e){}
+}
+
+/* FASES */
+function startPhase1(){
+  phase=1; tunnelActive=true; tunnelStartTime=performance.now();
+  initTunnel();
+  showBtn('✦ нажать, чтобы продолжить ✦');
+  clickEnabled=true;
+}
+
+function startPhase2(){
+  phase=2; tunnelActive=false; clickEnabled=false; hideBtn();
+  tnCanvas.style.opacity='0';
+  setTimeout(()=>tnCanvas.style.display='none',1400);
+  document.getElementById('mirrorWrap').style.opacity='1';
+  setTimeout(()=>{
+    document.getElementById('avatarsWrap').classList.add('visible');
+    setTimeout(()=>{ showBtn('✦ прикоснись сюда ✦'); clickEnabled=true; },600);
+  },900);
+}
+
+function startPhase3(){
+  phase=3; clickEnabled=false; readyForReveal=false; hideBtn();
+  const wrap=document.getElementById('mirrorTextWrap');
+  const el=document.getElementById('questionText');
+  wrap.classList.add('visible');
+  el.textContent='';
+  typeText(el,'Зеркальце, зеркальце...',80,()=>{
+    setTimeout(()=>{
+      typeText(el,'Зеркальце, зеркальце...\nКто самая красивая на свете?',60,()=>{
+        const glow=document.getElementById('mirrorGlow');
+        glow.style.animation='mirrorPulse 0.8s ease-in-out infinite';
+        glow.style.background='radial-gradient(ellipse,rgba(255,200,100,.38) 0%,rgba(200,100,255,.22) 60%,transparent 82%)';
+        setTimeout(()=>{
+          document.getElementById('mirrorPhoto').classList.add('show');
+          readyForReveal=true; clickEnabled=true;
+          showBtn('✦ нажать, чтобы увидеть ответ ✦');
+        },900);
+      });
+    },1100);
+  });
+}
+
+function startPhase4(){
+  phase=4; clickEnabled=false; readyForReveal=false; hideBtn();
+  document.getElementById('milsReveal').classList.add('visible');
+  playChimes();
+  setTimeout(()=>{
+    document.getElementById('milsWord').classList.add('revealed');
+    for(let i=0;i<60;i++) setTimeout(()=>spawnSparkle(
+      window.innerWidth/2+(Math.random()-.5)*260,
+      window.innerHeight/2+(Math.random()-.5)*210,true),i*35);
+    setTimeout(()=>document.getElementById('milsSubtitle').classList.add('visible'),750);
+  },450);
+}
+
+/* REINICIAR */
+function restartAll(){
+  phase=0; tunnelActive=false; sparkles=[]; readyForReveal=false;
+  if(typingInterval){clearInterval(typingInterval);typingInterval=null;}
+  hideBtn();
+  tnCanvas.style.display=''; tnCanvas.style.opacity='1';
+  document.getElementById('mirrorWrap').style.opacity='0';
+  document.getElementById('avatarsWrap').classList.remove('visible');
+  document.getElementById('mirrorTextWrap').classList.remove('visible');
+  document.getElementById('questionText').textContent='';
+  document.getElementById('mirrorPhoto').classList.remove('show');
+  document.getElementById('milsReveal').classList.remove('visible');
+  document.getElementById('milsWord').classList.remove('revealed');
+  document.getElementById('milsSubtitle').classList.remove('visible');
+  const glow=document.getElementById('mirrorGlow');glow.style.animation='';glow.style.background='';
+  clickEnabled=false;
+  setTimeout(startPhase1,120);
+}
+
+/* LOOP */
+function loop(t){
+  requestAnimationFrame(loop);
+  drawBg(t); drawSparkles();
+  if(Math.random()<.28) spawnSparkle();
+  if(tunnelActive){
+    const e=t-tunnelStartTime; drawTunnel(t,e);
+    if(e>7000&&phase===1) startPhase2();
+  }
+  if(phase>=2) drawAvatars(t);
+  if(phase>=4){
+    const cc=document.getElementById('crownCanvas').getContext('2d');
+    drawCrown(cc,t);
+    if(Math.random()<.38) spawnSparkle(
+      window.innerWidth/2+(Math.random()-.5)*330,
+      window.innerHeight/2+(Math.random()-.5)*230,
+      Math.random()<.28);
+  }
+}
+
+initBg();
+window.addEventListener('resize',()=>{initBg();if(tnCanvas.style.display!=='none')initTunnel();});
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
